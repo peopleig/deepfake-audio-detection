@@ -5,10 +5,6 @@ from torch.utils.data import DataLoader, Dataset
 from pathlib import Path
 from tqdm import tqdm
 
-
-# -----------------------------
-# Dataset Class
-# -----------------------------
 class DeepfakeDataset(Dataset):
     def __init__(self, feature_dir):
         self.files = list(Path(feature_dir).glob("*.pt"))
@@ -22,10 +18,6 @@ class DeepfakeDataset(Dataset):
         label = data["label"]
         return mel, torch.tensor(label, dtype=torch.float32)
 
-
-# -----------------------------
-# CNN Model for Detection
-# -----------------------------
 class CNNDetector(nn.Module):
     def __init__(self, n_mels=128):
         super(CNNDetector, self).__init__()
@@ -48,15 +40,11 @@ class CNNDetector(nn.Module):
         self.fc = nn.Linear(128, 1)
 
     def forward(self, x):
-        x = x.unsqueeze(1)  # (B, 1, n_mels, T)
+        x = x.unsqueeze(1)
         x = self.conv(x)
         x = x.view(x.size(0), -1)
         return torch.sigmoid(self.fc(x))
 
-
-# -----------------------------
-# Training Function
-# -----------------------------
 def train_model(model, train_loader, val_loader, device, epochs=10, lr=1e-3):
     criterion = nn.BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -79,7 +67,6 @@ def train_model(model, train_loader, val_loader, device, epochs=10, lr=1e-3):
         avg_loss = running_loss / len(train_loader)
         print(f"Epoch {epoch+1}/{epochs} → Train Loss: {avg_loss:.4f}")
 
-        # Validation (optional)
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
@@ -96,10 +83,6 @@ def train_model(model, train_loader, val_loader, device, epochs=10, lr=1e-3):
     torch.save(model.state_dict(), "deepfake_detector.pth")
     print("Model saved as deepfake_detector.pth")
 
-
-# -----------------------------
-# Main Script
-# -----------------------------
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
 

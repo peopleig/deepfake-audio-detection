@@ -3,11 +3,8 @@ import torchaudio
 import torchaudio.transforms as T
 import random
 
-TARGET_SR = 16000  # target sample rate
+TARGET_SR = 16000
 
-# -----------------------------
-# 1. Basic Augmentations
-# -----------------------------
 def add_noise(waveform, noise_level=0.005):
     noise = torch.randn_like(waveform) * noise_level
     return waveform + noise
@@ -30,9 +27,6 @@ def pitch_shift(waveform, sr=TARGET_SR, n_steps=2):
 def volume_change(waveform, gain_db=5.0):
     return waveform * (10 ** (gain_db / 20))
 
-# -----------------------------
-# 2. Advanced Augmentations
-# -----------------------------
 def apply_reverb(waveform):
     reverb = T.Reverberate(sample_rate=TARGET_SR)
     return reverb(waveform)
@@ -42,7 +36,6 @@ def bandpass_filter(waveform, low=300, high=3400):
     return bandpass(waveform)
 
 def mp3_compression(waveform, sr=TARGET_SR):
-    # Simulate codec compression (train-time only)
     import tempfile, os
     import soundfile as sf
 
@@ -58,9 +51,6 @@ def mp3_compression(waveform, sr=TARGET_SR):
     os.remove(tmp_mp3)
     return wav.mean(dim=0, keepdim=True)
 
-# -----------------------------
-# 3. Augmentation Pipeline
-# -----------------------------
 def augment_audio(waveform, sr=TARGET_SR):
     # Choose random augmentations
     if random.random() < 0.5:
@@ -80,9 +70,6 @@ def augment_audio(waveform, sr=TARGET_SR):
 
     return waveform
 
-# -----------------------------
-# 4. Example Usage
-# -----------------------------
 if _name_ == "_main_":
     wav, sr = torchaudio.load("example.wav")
     wav = torchaudio.transforms.Resample(sr, TARGET_SR)(wav)
