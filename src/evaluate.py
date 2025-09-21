@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
-from dataset import ASVspoofDataset  # or DeepfakeDataset if using preprocessed .pt
-from model import ResNetAudioClassifier  # or CNNDetector if you trained that
+from dataset import ASVspoofDataset 
+from model import ResNetAudioClassifier 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -27,7 +27,6 @@ def evaluate(model, dataloader, threshold=0.5):
     accuracy = correct / total
     print(f"Accuracy: {accuracy:.4f}")
 
-    # Optional: compute additional metrics
     try:
         from sklearn.metrics import f1_score, confusion_matrix
         f1 = f1_score(all_labels, all_preds)
@@ -42,7 +41,6 @@ def evaluate(model, dataloader, threshold=0.5):
 
 
 if __name__ == "__main__":
-    # Load dataset
     test_dataset = ASVspoofDataset("/path/to/ASVspoof2021", subset="eval", feature_type="LFCC", augment=False)
     test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=2)
 
