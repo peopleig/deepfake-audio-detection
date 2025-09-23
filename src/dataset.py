@@ -1,70 +1,113 @@
 import os
+from pathlib import Path
+from typing import List, Tuple
 import torch
 from torch.utils.data import Dataset, DataLoader
 import torchaudio
-from augment import augment_audio
-from features import extract_features  
+from .features import extract_features, TARGET_SR
+from .augment import augment_audio
 
-TARGET_SR = 16000  
-
-class ASVspoofDataset(Dataset):
-    def _init_(self, root_dir, subset="train", feature_type="LFCC", augment=False):
-        self.root_dir = root_dir
-        self.subset = subset
+class FoRDataset(Dataset):
+    """
+    Expects a directory like:
+      data/for-norm/
+        real/**.wav
+        fake/**.wav
+    or variant-specific subfolders with similar structure.
+    """
+    def __init__(self, root_dir: str, feature_type: str = "logmel", split: str = "train",
+                 train_ratio: float = 0.8, val_ratio: float = 0.1, augment: bool = False,
+                 fixed_seconds: float = None, enable_mp3_aug: bool = False):
+        self.root_dir = Path(root_dir)
         self.feature_type = feature_type
         self.augment = augment
+        self.fixed_samples = int(fixed_seconds * TARGET_SR) if fixed_seconds else None
+        self.enable_mp3_aug = enable_mp3_aug
 
-        self.file_paths = []
-        self.labels = []
+        wavs, labels = self._scan_files(self.root_dir)
+        # Simple stratified-like split by index while keeping class balance
+        real_idx = [i for i, y in enumerate(labels) if y == 0]
+        fake_idx = [i for i, y in enumerate(labels) if y == 1]
+        def split_indices(idx_list):
+            n = len(idx_list)
+            n_train = int(n * train_ratio)
+            n_val = int(n * val_ratio)
+            train_i = idx_list[:n_train]
+            val_i = idx_list[n_train:n_train+n_val]
+            test_i = idx_list[n_train+n_val:]
+            return {"train": train_i, "val": val_i, "test": test_i}
+        parts_real = split_indices(real_idx)
+        parts_fake = split_indices(fake_idx)
+        part = {"train": [], "val": [], "test": []}
+        for k in part.keys():
+            part[k] = parts_real[k] + parts_fake[k]
+            part[k].sort()
+        sel = part["train" if split == "train" else "val" if split == "val" else "test"]
 
-        self._load_file_paths_and_labels()
+        self.files = [wavs[i] for i in sel]
+        self.labels = [labels[i] for i in sel]
 
-    def _load_file_paths_and_labels(self):
-        subset_dir = os.path.join(self.root_dir, self.subset)
+    def _scan_files(self, root: Path) -> Tuple[List[Path], List[int]]:
+        wavs, labels = [], []
+        # Expect subfolders named 'real' and 'fake' somewhere under root
+        for cls, label in [("real", 0), ("fake", 1)]:
+            for p in root.rglob("*.wav"):
+                # detect class by path segment
+                parts = {q.name.lower() for q in p.parents}
+                if cls in parts:
+                    wavs.append(p)
+                    labels.append(label)
+        if not wavs:
+            raise RuntimeError(f"No WAV files found under {root}. Ensure folders contain 'real' and 'fake'.")
+        return wavs, labels
 
-        for root, _, files in os.walk(subset_dir):
-            for file in files:
-                if file.endswith(".wav"):
-                    self.file_paths.append(os.path.join(root, file))
-                    if "bonafide" in file.lower():
-                        self.labels.append(0)
-                    else:
-                        self.labels.append(1)
+    def _pad_or_trim(self, wav: torch.Tensor) -> torch.Tensor:
+        if self.fixed_samples is None:
+            return wav
+        T = wav.size(-1)
+        if T == self.fixed_samples:
+            return wav
+        if T > self.fixed_samples:
+            return wav[..., :self.fixed_samples]
+        # pad at end
+        pad = self.fixed_samples - T
+        return torch.nn.functional.pad(wav, (0, pad))
 
-    def _len_(self):
-        return len(self.file_paths)
+    def __len__(self):
+        return len(self.files)
 
-    def _getitem_(self, idx):
-        audio_path = self.file_paths[idx]
-        waveform, sr = torchaudio.load(audio_path)
-
-        
+    def __getitem__(self, idx):
+        path = self.files[idx]
+        wav, sr = torchaudio.load(path)
+        if wav.size(0) > 1:
+            wav = wav.mean(dim=0, keepdim=True)
         if sr != TARGET_SR:
-            waveform = torchaudio.transforms.Resample(sr, TARGET_SR)(waveform)
-
+            wav = torchaudio.transforms.Resample(sr, TARGET_SR)(wav)
+        wav = self._pad_or_trim(wav)
         if self.augment:
-            waveform = augment_audio(waveform, TARGET_SR)
+            wav = augment_audio(wav, enable_mp3=self.enable_mp3_aug)
+        feat = extract_features(wav, TARGET_SR, self.feature_type)  # (1, n_mels, T)
+        label = torch.tensor(self.labels[idx], dtype=torch.float32)
+        return feat, label
 
-        features = extract_features(waveform, TARGET_SR, self.feature_type)
+def pad_collate(batch):
+    # For variable length features; here mel has shape (1, M, T). Pad T to max within batch.
+    feats, labels = zip(*batch)
+    M = feats[0].size(1)
+    T_max = max(f.size(2) for f in feats)
+    padded = []
+    for f in feats:
+        T = f.size(2)
+        if T < T_max:
+            f = torch.nn.functional.pad(f, (0, T_max - T))
+        padded.append(f)
+    x = torch.stack(padded, dim=0)
+    y = torch.stack(labels, dim=0)
+    return x, y
 
-        label = torch.tensor(self.labels[idx], dtype=torch.long)
-
-        return features, label
-
-
-def get_dataloader(root_dir, subset="train", feature_type="LFCC", augment=False,
-                   batch_size=16, shuffle=True, num_workers=2):
-    dataset = ASVspoofDataset(root_dir=root_dir, subset=subset,
-                              feature_type=feature_type, augment=augment)
-    dataloader = DataLoader(dataset, batch_size=batch_size,
-                            shuffle=shuffle, num_workers=num_workers)
-    return dataloader
-
-
-if _name_ == "_main_":
-    root = "/path/to/ASVspoof2021"  
-    train_loader = get_dataloader(root, subset="train", feature_type="LFCC", augment=True)
-
-    for batch_idx, (features, labels) in enumerate(train_loader):
-        print(f"Batch {batch_idx} → Features: {features.shape}, Labels: {labels.shape}")
-        break
+def make_dataloader(root_dir: str, feature_type="logmel", split="train", batch_size=32,
+                    shuffle=True, num_workers=2, augment=False, fixed_seconds=None, enable_mp3_aug=False):
+    ds = FoRDataset(root_dir=root_dir, feature_type=feature_type, split=split,
+                    augment=augment, fixed_seconds=fixed_seconds, enable_mp3_aug=enable_mp3_aug)
+    collate = None if fixed_seconds else pad_collate
+    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=collate)

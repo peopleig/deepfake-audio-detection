@@ -1,97 +1,77 @@
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
 from pathlib import Path
-from tqdm import tqdm
+from .dataset import make_dataloader
+from .model import ResNetAudioClassifier
 
-class DeepfakeDataset(Dataset):
-    def __init__(self, feature_dir):
-        self.files = list(Path(feature_dir).glob("*.pt"))
+def parse_args():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data_dir", type=str, required=True, help="Path to FoR variant root (e.g., data/for-2sec)")
+    ap.add_argument("--feature_type", type=str, default="logmel")
+    ap.add_argument("--epochs", type=int, default=20)
+    ap.add_argument("--batch_size", type=int, default=32)
+    ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--fixed_seconds", type=float, default=None, help="If set, pad/trim to this length (e.g., 2.0)")
+    ap.add_argument("--augment", action="store_true")
+    ap.add_argument("--mp3_aug", action="store_true")
+    ap.add_argument("--pretrained", action="store_true")
+    ap.add_argument("--out", type=str, default="runs/for_resnet34.pt")
+    return ap.parse_args()
 
-    def __len__(self):
-        return len(self.files)
+def train_one_epoch(model, loader, device, criterion, optimizer):
+    model.train()
+    running = 0.0
+    for x, y in loader:
+        x = x.to(device)
+        y = y.to(device)
+        optimizer.zero_grad()
+        logits = model(x)  # (B,)
+        loss = criterion(logits, y)
+        loss.backward()
+        optimizer.step()
+        running += loss.item()
+    return running / max(1, len(loader))
 
-    def __getitem__(self, idx):
-        data = torch.load(self.files[idx])
-        mel = data["mel"]  # (n_mels, time)
-        label = data["label"]
-        return mel, torch.tensor(label, dtype=torch.float32)
+@torch.no_grad()
+def eval_loss(model, loader, device, criterion):
+    model.eval()
+    total = 0.0
+    for x, y in loader:
+        x = x.to(device)
+        y = y.to(device)
+        logits = model(x)
+        loss = criterion(logits, y)
+        total += loss.item()
+    return total / max(1, len(loader))
 
-class CNNDetector(nn.Module):
-    def __init__(self, n_mels=128):
-        super(CNNDetector, self).__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-
-            nn.Conv2d(64, 128, 3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d((1, 1))
-        )
-        self.fc = nn.Linear(128, 1)
-
-    def forward(self, x):
-        x = x.unsqueeze(1)
-        x = self.conv(x)
-        x = x.view(x.size(0), -1)
-        return torch.sigmoid(self.fc(x))
-
-def train_model(model, train_loader, val_loader, device, epochs=10, lr=1e-3):
-    criterion = nn.BCELoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-
-    for epoch in range(epochs):
-        model.train()
-        running_loss = 0.0
-
-        for X, y in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]"):
-            X, y = X.to(device), y.to(device)
-
-            optimizer.zero_grad()
-            preds = model(X).squeeze(1)
-            loss = criterion(preds, y)
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item()
-
-        avg_loss = running_loss / len(train_loader)
-        print(f"Epoch {epoch+1}/{epochs} → Train Loss: {avg_loss:.4f}")
-
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for X, y in tqdm(val_loader, desc=f"Epoch {epoch+1}/{epochs} [Val]"):
-                X, y = X.to(device), y.to(device)
-                preds = model(X).squeeze(1)
-                loss = criterion(preds, y)
-                val_loss += loss.item()
-
-        avg_val_loss = val_loss / len(val_loader)
-        print(f"Epoch {epoch+1}/{epochs} → Val Loss: {avg_val_loss:.4f}")
-
-    print("✅ Training Finished")
-    torch.save(model.state_dict(), "deepfake_detector.pth")
-    print("Model saved as deepfake_detector.pth")
-
-if __name__ == "__main__":
+def main():
+    args = parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    train_dataset = DeepfakeDataset("processed/train")
-    val_dataset = DeepfakeDataset("processed/val")
+    train_loader = make_dataloader(args.data_dir, feature_type=args.feature_type, split="train",
+                                   batch_size=args.batch_size, shuffle=True, augment=args.augment,
+                                   fixed_seconds=args.fixed_seconds, enable_mp3_aug=args.mp3_aug)
+    val_loader = make_dataloader(args.data_dir, feature_type=args.feature_type, split="val",
+                                 batch_size=args.batch_size, shuffle=False, augment=False,
+                                 fixed_seconds=args.fixed_seconds, enable_mp3_aug=False)
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=2)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=2)
+    model = ResNetAudioClassifier(in_channels=1, pretrained=args.pretrained).to(device)
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
-    model = CNNDetector(n_mels=128).to(device)
+    best_val = float("inf")
+    Path("runs").mkdir(parents=True, exist_ok=True)
 
-    train_model(model, train_loader, val_loader, device, epochs=10, lr=1e-3)
+    for epoch in range(1, args.epochs + 1):
+        tr = train_one_epoch(model, train_loader, device, criterion, optimizer)
+        vl = eval_loss(model, val_loader, device, criterion)
+        print(f"Epoch {epoch}: train_loss={tr:.4f} val_loss={vl:.4f}")
+        if vl < best_val:
+            best_val = vl
+            torch.save({"model": model.state_dict(), "epoch": epoch}, args.out)
+            print(f"Saved best checkpoint → {args.out}")
+
+if __name__ == "__main__":
+    main()

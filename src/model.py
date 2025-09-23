@@ -1,21 +1,17 @@
 import torch
 import torch.nn as nn
-import torchvision.models as models
+import torchvision.models as tv
 
 class ResNetAudioClassifier(nn.Module):
-    def __init__(self, n_input_channels=1, n_classes=1, pretrained=False):
-        super(ResNetAudioClassifier, self).__init__()
-        self.resnet = models.resnet34(pretrained=pretrained)
-        self.resnet.conv1 = nn.Conv2d(
-            n_input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
-        )
-        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, n_classes)
+    def __init__(self, in_channels: int = 1, pretrained: bool = False):
+        super().__init__()
+        self.backbone = tv.resnet34(weights=tv.ResNet34_Weights.DEFAULT if pretrained else None)
+        # Adapt first conv to 1 channel
+        self.backbone.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        # Binary classifier head (logit)
+        in_feats = self.backbone.fc.in_features
+        self.backbone.fc = nn.Linear(in_feats, 1)
 
-    def forward(self, x):
-        return torch.sigmoid(self.resnet(x))
-
-if __name__ == "__main__":
-    model = ResNetAudioClassifier()
-    dummy_input = torch.randn(2, 1, 128, 400) 
-    out = model(dummy_input)
-    print(out.shape)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (B, 1, n_mels, time)
+        return self.backbone(x).squeeze(1)  # raw logits for BCEWithLogitsLoss

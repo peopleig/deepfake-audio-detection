@@ -1,50 +1,49 @@
+import argparse
 import torch
-from torch.utils.data import DataLoader
-from dataset import ASVspoofDataset 
-from model import ResNetAudioClassifier 
+from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
+from .dataset import make_dataloader
+from .model import ResNetAudioClassifier
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+def parse_args():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data_dir", type=str, required=True, help="FoR variant root to evaluate on (e.g., data/for-rerec)")
+    ap.add_argument("--ckpt", type=str, required=True)
+    ap.add_argument("--batch_size", type=int, default=32)
+    ap.add_argument("--fixed_seconds", type=float, default=None)
+    ap.add_argument("--feature_type", type=str, default="logmel")
+    ap.add_argument("--threshold", type=float, default=0.5)
+    return ap.parse_args()
 
-def evaluate(model, dataloader, threshold=0.5):
+@torch.no_grad()
+def evaluate(model, loader, device, threshold=0.5):
     model.eval()
-    correct = 0
-    total = 0
-    all_preds = []
-    all_labels = []
+    y_true = []
+    y_score = []
+    for x, y in loader:
+        x = x.to(device)
+        logits = model(x)
+        y_true.extend(y.numpy().tolist())
+        y_score.extend(torch.sigmoid(logits).cpu().numpy().tolist())
+    # Threshold for metrics that require hard labels
+    import numpy as np
+    y_pred = (np.array(y_score) > threshold).astype(int)
+    auc = roc_auc_score(y_true, y_score)
+    f1 = f1_score(y_true, y_pred)
+    cm = confusion_matrix(y_true, y_pred)
+    print(f"AUC: {auc:.4f}  F1: {f1:.4f}")
+    print("Confusion matrix:")
+    print(cm)
 
-    with torch.no_grad():
-        for X, y in dataloader:
-            X, y = X.to(device), y.to(device)
-            outputs = model(X).squeeze(1)
-            preds = (outputs > threshold).float()
-
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(y.cpu().numpy())
-
-            correct += (preds == y).sum().item()
-            total += y.size(0)
-
-    accuracy = correct / total
-    print(f"Accuracy: {accuracy:.4f}")
-
-    try:
-        from sklearn.metrics import f1_score, confusion_matrix
-        f1 = f1_score(all_labels, all_preds)
-        cm = confusion_matrix(all_labels, all_preds)
-        print(f"F1 Score: {f1:.4f}")
-        print("Confusion Matrix:")
-        print(cm)
-    except ImportError:
-        print("Install scikit-learn to see F1 score and confusion matrix.")
-
-    return accuracy
-
+def main():
+    args = parse_args()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    loader = make_dataloader(args.data_dir, feature_type=args.feature_type, split="test",
+                             batch_size=args.batch_size, shuffle=False, augment=False,
+                             fixed_seconds=args.fixed_seconds, enable_mp3_aug=False)
+    model = ResNetAudioClassifier(in_channels=1, pretrained=False).to(device)
+    ckpt = torch.load(args.ckpt, map_location=device)
+    model.load_state_dict(ckpt["model"] if "model" in ckpt else ckpt)
+    evaluate(model, loader, device, threshold=args.threshold)
 
 if __name__ == "__main__":
-    test_dataset = ASVspoofDataset("/path/to/ASVspoof2021", subset="eval", feature_type="LFCC", augment=False)
-    test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=2)
-
-    model = ResNetAudioClassifier(n_input_channels=1, n_classes=1).to(device)
-    model.load_state_dict(torch.load("deepfake_detector.pth", map_location=device))
-
-    evaluate(model, test_loader)
+    main()
