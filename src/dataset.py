@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List, Tuple
 import torch
 from torch.utils.data import Dataset, DataLoader
+import platform
 import torchaudio
 from .features import extract_features, TARGET_SR
 from .augment import augment_audio
@@ -49,14 +50,25 @@ class FoRDataset(Dataset):
 
     def _scan_files(self, root: Path) -> Tuple[List[Path], List[int]]:
         wavs, labels = [], []
-        # Expect subfolders named 'real' and 'fake' somewhere under root
-        for cls, label in [("real", 0), ("fake", 1)]:
-            for p in root.rglob("*.wav"):
-                # detect class by path segment
-                parts = {q.name.lower() for q in p.parents}
-                if cls in parts:
-                    wavs.append(p)
-                    labels.append(label)
+        # Accept multiple aliases for class names to match common dataset conventions
+        alias_to_label = {
+            0: {"real", "bonafide", "genuine", "human", "authentic"},
+            1: {"fake", "spoof", "ai", "synthetic", "tts", "vc", "replay"},
+        }
+        for p in root.rglob("*.wav"):
+            parts = {q.name.lower() for q in p.parents}
+            assigned = False
+            if alias_to_label[0].intersection(parts):
+                wavs.append(p)
+                labels.append(0)
+                assigned = True
+            elif alias_to_label[1].intersection(parts):
+                wavs.append(p)
+                labels.append(1)
+                assigned = True
+            if not assigned:
+                # skip files that do not live under a recognized class folder
+                continue
         if not wavs:
             raise RuntimeError(f"No WAV files found under {root}. Ensure folders contain 'real' and 'fake'.")
         return wavs, labels
@@ -110,4 +122,7 @@ def make_dataloader(root_dir: str, feature_type="logmel", split="train", batch_s
     ds = FoRDataset(root_dir=root_dir, feature_type=feature_type, split=split,
                     augment=augment, fixed_seconds=fixed_seconds, enable_mp3_aug=enable_mp3_aug)
     collate = None if fixed_seconds else pad_collate
-    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=collate)
+    # On Windows, multiprocessing uses spawn which often has pickling issues with torchaudio/transforms.
+    # Default to single-process data loading for stability unless explicitly overridden.
+    effective_workers = 0 if platform.system() == "Windows" and num_workers == 2 else num_workers
+    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=effective_workers, collate_fn=collate)

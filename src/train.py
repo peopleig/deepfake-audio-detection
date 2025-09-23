@@ -5,6 +5,9 @@ import torch.optim as optim
 from pathlib import Path
 from .dataset import make_dataloader
 from .model import ResNetAudioClassifier
+import warnings
+
+warnings.filterwarnings("ignore", message="In 2.9, this function's implementation will be changed")
 
 def parse_args():
     ap = argparse.ArgumentParser()
@@ -18,6 +21,7 @@ def parse_args():
     ap.add_argument("--mp3_aug", action="store_true")
     ap.add_argument("--pretrained", action="store_true")
     ap.add_argument("--out", type=str, default="runs/for_resnet34.pt")
+    ap.add_argument("--resume", type=str, default=None, help="Path to checkpoint to resume from")
     return ap.parse_args()
 
 def train_one_epoch(model, loader, device, criterion, optimizer):
@@ -61,16 +65,33 @@ def main():
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
+    start_epoch = 1
     best_val = float("inf")
+    if args.resume:
+        ckpt = torch.load(args.resume, map_location=device)
+        state = ckpt.get("model", ckpt)
+        model.load_state_dict(state)
+        if "optimizer" in ckpt:
+            optimizer.load_state_dict(ckpt["optimizer"])
+        if "epoch" in ckpt:
+            start_epoch = int(ckpt["epoch"]) + 1
+        if "best_val" in ckpt:
+            best_val = float(ckpt["best_val"])
+
     Path("runs").mkdir(parents=True, exist_ok=True)
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         tr = train_one_epoch(model, train_loader, device, criterion, optimizer)
         vl = eval_loss(model, val_loader, device, criterion)
         print(f"Epoch {epoch}: train_loss={tr:.4f} val_loss={vl:.4f}")
         if vl < best_val:
             best_val = vl
-            torch.save({"model": model.state_dict(), "epoch": epoch}, args.out)
+            torch.save({
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "epoch": epoch,
+                "best_val": best_val,
+            }, args.out)
             print(f"Saved best checkpoint → {args.out}")
 
 if __name__ == "__main__":

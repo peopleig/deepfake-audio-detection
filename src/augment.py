@@ -4,6 +4,11 @@ import tempfile
 import torch
 import torchaudio
 import torchaudio.transforms as T
+try:
+    # torchaudio.functional provides biquad filters across versions
+    import torchaudio.functional as F
+except Exception:
+    F = None
 
 TARGET_SR = 16000
 
@@ -19,7 +24,22 @@ def time_shift(waveform: torch.Tensor, max_frac: float = 0.2) -> torch.Tensor:
     return torch.roll(waveform, shifts=shift, dims=-1)
 
 def bandpass_filter(waveform: torch.Tensor, low=300, high=3400) -> torch.Tensor:
-    return T.BandpassBiquad(TARGET_SR, low, high)(waveform)
+    # Prefer functional bandpass if available; fall back to highpass+lowpass; otherwise no-op
+    if F is not None:
+        try:
+            if hasattr(F, "bandpass_biquad"):
+                return F.bandpass_biquad(waveform, TARGET_SR, low, high)
+        except Exception:
+            pass
+        try:
+            if hasattr(F, "highpass_biquad") and hasattr(F, "lowpass_biquad"):
+                wf = F.highpass_biquad(waveform, TARGET_SR, low)
+                wf = F.lowpass_biquad(wf, TARGET_SR, high)
+                return wf
+        except Exception:
+            pass
+    # As a safe fallback, return the original waveform unmodified
+    return waveform
 
 def gain_db(waveform: torch.Tensor, gain: float) -> torch.Tensor:
     return waveform * (10 ** (gain / 20))

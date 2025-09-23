@@ -1,0 +1,52 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+.conda/
+
+# Packages/metadata
+*.egg-info/
+dist/
+build/
+
+# IDE/editor
+.vscode/
+.idea/
+*.code-workspace
+
+# OS cruft
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.db
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Project data & artifacts (large/unversioned)
+data/
+runs/
+logs/
+wandb/
+
+# Model/checkpoints
+*.pt
+*.pth
+*.ckpt
+
+# Archives and large blobs
+*.tar
+*.tar.gz
+
+# Audio augmentation temps (just in case)
+*.tmp
+*.temp
+

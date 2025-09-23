@@ -1,0 +1,12 @@
+# Core Python dependencies required to run the training/evaluation scripts.
+# Note: install torch/torchaudio/torchvision using the correct wheel for your CUDA
+# or CPU-only configuration (see https://pytorch.org/get-started/locally/)
+torch
+torchaudio
+torchvision
+numpy
+scipy
+scikit-learn
+tqdm
+
+# ffmpeg is required on PATH for MP3 augmentation (not a pip package).

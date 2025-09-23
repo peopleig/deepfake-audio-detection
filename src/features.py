@@ -44,8 +44,19 @@ def extract_logmel(waveform: torch.Tensor) -> torch.Tensor:
     mean = mel_db.mean()
     std = mel_db.std().clamp_min(1e-5)
     mel_db = (mel_db - mean) / std
-    # add channel dim for CNN: (1, n_mels, time)
-    return mel_db.unsqueeze(0)
+    # Ensure we return shape (1, n_mels, time) for the CNN input channel.
+    # mel_db may be (n_mels, time) or (1, n_mels, time) depending on torchaudio behavior.
+    if mel_db.ndim == 2:
+        # (n_mels, time) -> (1, n_mels, time)
+        mel_db = mel_db.unsqueeze(0)
+    elif mel_db.ndim == 3:
+        # already has a channel dimension; if it's not single-channel, collapse to 1
+        if mel_db.size(0) != 1:
+            mel_db = mel_db.mean(dim=0, keepdim=True)
+    else:
+        raise ValueError(f"Unexpected mel_db ndim: {mel_db.ndim}")
+
+    return mel_db
 
 def extract_features(waveform: torch.Tensor, sr: int, feature_type: str = "logmel") -> torch.Tensor:
     waveform = ensure_mono(waveform)
