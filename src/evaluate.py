@@ -24,7 +24,6 @@ def evaluate(model, loader, device, threshold=0.5):
         logits = model(x)
         y_true.extend(y.numpy().tolist())
         y_score.extend(torch.sigmoid(logits).cpu().numpy().tolist())
-    # Threshold for metrics that require hard labels
     import numpy as np
     y_pred = (np.array(y_score) > threshold).astype(int)
     auc = roc_auc_score(y_true, y_score)

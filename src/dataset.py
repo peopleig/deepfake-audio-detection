@@ -9,13 +9,6 @@ from .features import extract_features, TARGET_SR
 from .augment import augment_audio
 
 class FoRDataset(Dataset):
-    """
-    Expects a directory like:
-      data/for-norm/
-        real/**.wav
-        fake/**.wav
-    or variant-specific subfolders with similar structure.
-    """
     def __init__(self, root_dir: str, feature_type: str = "logmel", split: str = "train",
                  train_ratio: float = 0.8, val_ratio: float = 0.1, augment: bool = False,
                  fixed_seconds: float = None, enable_mp3_aug: bool = False):
@@ -26,7 +19,6 @@ class FoRDataset(Dataset):
         self.enable_mp3_aug = enable_mp3_aug
 
         wavs, labels = self._scan_files(self.root_dir)
-        # Simple stratified-like split by index while keeping class balance
         real_idx = [i for i, y in enumerate(labels) if y == 0]
         fake_idx = [i for i, y in enumerate(labels) if y == 1]
         def split_indices(idx_list):
@@ -50,7 +42,6 @@ class FoRDataset(Dataset):
 
     def _scan_files(self, root: Path) -> Tuple[List[Path], List[int]]:
         wavs, labels = [], []
-        # Accept multiple aliases for class names to match common dataset conventions
         alias_to_label = {
             0: {"real", "bonafide", "genuine", "human", "authentic"},
             1: {"fake", "spoof", "ai", "synthetic", "tts", "vc", "replay"},
@@ -67,7 +58,6 @@ class FoRDataset(Dataset):
                 labels.append(1)
                 assigned = True
             if not assigned:
-                # skip files that do not live under a recognized class folder
                 continue
         if not wavs:
             raise RuntimeError(f"No WAV files found under {root}. Ensure folders contain 'real' and 'fake'.")
@@ -81,7 +71,6 @@ class FoRDataset(Dataset):
             return wav
         if T > self.fixed_samples:
             return wav[..., :self.fixed_samples]
-        # pad at end
         pad = self.fixed_samples - T
         return torch.nn.functional.pad(wav, (0, pad))
 
@@ -98,12 +87,11 @@ class FoRDataset(Dataset):
         wav = self._pad_or_trim(wav)
         if self.augment:
             wav = augment_audio(wav, enable_mp3=self.enable_mp3_aug)
-        feat = extract_features(wav, TARGET_SR, self.feature_type)  # (1, n_mels, T)
+        feat = extract_features(wav, TARGET_SR, self.feature_type) 
         label = torch.tensor(self.labels[idx], dtype=torch.float32)
         return feat, label
 
 def pad_collate(batch):
-    # For variable length features; here mel has shape (1, M, T). Pad T to max within batch.
     feats, labels = zip(*batch)
     M = feats[0].size(1)
     T_max = max(f.size(2) for f in feats)
@@ -122,7 +110,5 @@ def make_dataloader(root_dir: str, feature_type="logmel", split="train", batch_s
     ds = FoRDataset(root_dir=root_dir, feature_type=feature_type, split=split,
                     augment=augment, fixed_seconds=fixed_seconds, enable_mp3_aug=enable_mp3_aug)
     collate = None if fixed_seconds else pad_collate
-    # On Windows, multiprocessing uses spawn which often has pickling issues with torchaudio/transforms.
-    # Default to single-process data loading for stability unless explicitly overridden.
     effective_workers = 0 if platform.system() == "Windows" and num_workers == 2 else num_workers
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=effective_workers, collate_fn=collate)

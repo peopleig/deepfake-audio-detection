@@ -5,8 +5,8 @@ import torchaudio.transforms as T
 TARGET_SR = 16000
 N_MELS = 80
 N_FFT = 1024
-HOP = 160  # 10 ms at 16 kHz
-WIN_LENGTH = 400  # 25 ms at 16 kHz
+HOP = 160
+WIN_LENGTH = 400
 EPS = 1e-6
 
 mel_transform = T.MelSpectrogram(
@@ -24,7 +24,6 @@ mel_transform = T.MelSpectrogram(
 amplitude_to_db = T.AmplitudeToDB(stype="power")
 
 def ensure_mono(waveform: torch.Tensor) -> torch.Tensor:
-    # waveform shape (C, T) or (T,)
     if waveform.ndim == 1:
         waveform = waveform.unsqueeze(0)
     if waveform.size(0) > 1:
@@ -37,20 +36,14 @@ def resample_if_needed(waveform: torch.Tensor, sr: int) -> torch.Tensor:
     return torchaudio.transforms.Resample(sr, TARGET_SR)(waveform)
 
 def extract_logmel(waveform: torch.Tensor) -> torch.Tensor:
-    # waveform expected (1, T), float32, 16 kHz
-    mel = mel_transform(waveform)  # (n_mels, time)
-    mel_db = amplitude_to_db(mel + EPS)  # dB scale
-    # normalize per-utterance
+    mel = mel_transform(waveform)
+    mel_db = amplitude_to_db(mel + EPS)
     mean = mel_db.mean()
     std = mel_db.std().clamp_min(1e-5)
     mel_db = (mel_db - mean) / std
-    # Ensure we return shape (1, n_mels, time) for the CNN input channel.
-    # mel_db may be (n_mels, time) or (1, n_mels, time) depending on torchaudio behavior.
     if mel_db.ndim == 2:
-        # (n_mels, time) -> (1, n_mels, time)
         mel_db = mel_db.unsqueeze(0)
     elif mel_db.ndim == 3:
-        # already has a channel dimension; if it's not single-channel, collapse to 1
         if mel_db.size(0) != 1:
             mel_db = mel_db.mean(dim=0, keepdim=True)
     else:

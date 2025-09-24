@@ -5,8 +5,8 @@ import torch.optim as optim
 from pathlib import Path
 from .dataset import make_dataloader
 from .model import ResNetAudioClassifier
-import warnings
 
+import warnings
 warnings.filterwarnings("ignore", message="In 2.9, this function's implementation will be changed")
 
 def parse_args():
@@ -31,7 +31,7 @@ def train_one_epoch(model, loader, device, criterion, optimizer):
         x = x.to(device)
         y = y.to(device)
         optimizer.zero_grad()
-        logits = model(x)  # (B,)
+        logits = model(x)
         loss = criterion(logits, y)
         loss.backward()
         optimizer.step()
