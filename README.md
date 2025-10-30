@@ -20,4 +20,7 @@ This is the main script which will train the model. This will handle the dataset
 
 ### evaluation.py  
 This will load a trained model checkpoint, and will run evaluation/testing - data accuracy and other stuff.  
+
+### predict.py
+This will load the trained model checkpoint and will run it against a single input audio file and output a JSON of the verdict
   
