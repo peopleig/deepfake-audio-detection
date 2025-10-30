@@ -129,3 +129,17 @@ button:hover {
 .hidden {
     display: none;
 }
+
+#recordBtn, .stop-btn {
+    margin: 10px;
+    padding: 10px 20px;
+    border: none;
+    color: #000;
+    background-color: white;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#recordBtn:hover, .stop-btn:hover {
+    background-color: #f0bb2b;
+}
