@@ -7,3 +7,5 @@ python -m src.train --data_dir ".\data\for-norm" --fixed_seconds 2.0 --augment -
 To evaluate the trained model - 
 python -m src.evaluate --data_dir ".\data\for-norm" --ckpt ".\runs\for_resnet34.pt" --fixed_seconds 2.0 --batch_size 32 --threshold 0.5
 
+To run the trained model on a single audio file - 
+python predict.py --audio uploads/sample.wav
