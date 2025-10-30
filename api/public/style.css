@@ -1,17 +1,24 @@
 body {
-    margin: 0;
+    background: url('doodlebg.webp') repeat center center;
+    background-size: auto;
     font-family: 'Raleway', sans-serif;
-    background-color: #E1EFE6;
-    color: #222;
+    margin: 0;
+    padding: 0;
 }
 
+
 .navbar {
-    background-color: #160C28;
+    background-color: black;
     color: #E1EFE6;
     padding: 15px 30px;
     font-size: 65px;
     font-family: 'Syne', sans-serif;
     font-weight: 600;
+    border-bottom: 5px solid #f0bb2b;
+}
+
+.yellow {
+    color: #f0bb2b;
 }
 
 .container {
@@ -23,7 +30,8 @@ body {
 }
 
 .left {
-    background-color: #f1f5f3;
+    background-color: black;
+    color: white;
     border-radius: 0 2rem 2rem 2rem;
     border-left: 10px solid #f0bb2b;
     padding: 1rem;
@@ -45,13 +53,12 @@ body {
 }
 
 form {
-    background: #f1f5f3;
+    background-color: black;
+    color: white;
     border-radius: 2rem 0 2rem 2rem;
     border-right: 10px solid #f0bb2b;
     padding: 25px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-
-    /* Center the form inside its parent */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -62,7 +69,8 @@ form {
     display: flex;
     flex-direction: column;
     align-items: center;
-    background-color: #fff;
+    background-color: black;
+    color: white;
     border: 2px dashed #f0bb2b;
     border-radius: 1rem;
     padding: 20px;
@@ -72,7 +80,7 @@ form {
 }
 
 .upload-btn:hover {
-    background-color: #f9f5e7;
+    background-color: rgb(44, 44, 44);
     border-color: #f5c232;
 }
 
@@ -83,8 +91,6 @@ form {
 }
 
 button[type="submit"] {
-    background-color: #000;
-    color: white;
     border: none;
     border-radius: 1rem;
     padding: 10px 20px;
@@ -93,28 +99,30 @@ button[type="submit"] {
 }
 
 button[type="submit"]:hover {
-    background-color: #333;
+    background-color: #f0bb2b;
 }
 
 
 button {
     padding: 10px 20px;
     border: none;
-    background-color: #000;
-    color: white;
+    color: #000;
+    background-color: white;
     border-radius: 5px;
     cursor: pointer;
 }
 
 button:hover {
-    background-color: #333;
+    background-color: #f0bb2b;
 }
 
 .result {
+    border-radius: 2rem 0 2rem 2rem;
+    border-right: 10px solid #f0bb2b;
+    background-color: black;
+    color: white;
     margin-top: 25px;
-    background-color: #fff;
     padding: 20px;
-    border-radius: 8px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
