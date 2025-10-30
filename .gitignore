@@ -50,3 +50,9 @@ wandb/
 *.tmp
 *.temp
 
+#Node Modules in API
+api/node_modules/
+
+#The files in the uploads folder, but I want the uploads folder to remain
+api/uploads/*
+

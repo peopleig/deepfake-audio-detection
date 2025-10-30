@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&family=Syne:wght@400..800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-title">Deepfake Audio Detector</div>
+    </nav>
+
+    <div class="container">
+        <div class="left">
+            <h2>Detect Deepfake Audio</h2>
+            <p>
+                Audio Detector is an interactive platform built to identify deepfake audio using state-of-the-art machine learning. 
+                <br><br>It connects directly with our custom model based on ResNet-34, a powerful convolutional neural network architecture optimized for analyzing acoustic features such as log-mel spectrograms. 
+                <br>When you upload a voice recording, the model evaluates subtle frequency and temporal cues to distinguish genuine human speech from synthetically generated audio. 
+                <br><br>The result, displayed instantly on your screen, includes both a verdict and a confidence score. 
+                <br>This project bridges research-grade AI with a user-friendly interface, helping raise awareness about deepfake media and audio authenticity.
+            </p>
+        </div>
+
+        <div class="right">
+            <form id="uploadForm" enctype="multipart/form-data">
+                <label for="audioFile">Select an audio file:</label>
+                <input type="file" id="audioFile" name="audio" accept="audio/*" required hidden>
+                <label for="audioFile" class="upload-btn">
+                    <img src="/audio.svg" alt="Upload Audio" class="mic-icon">
+                    <span id="labelText">Choose File</span>
+                </label>
+            
+                <button type="submit">Analyze</button>
+            </form>
+
+            <div id="result" class="result hidden">
+                <h3>Result:</h3>
+                <p id="verdict"></p>
+                <p id="probability"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/main.js"></script>
+</body>
+</html>
