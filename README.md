@@ -16,7 +16,7 @@ This will extract the audio features - LFCC or spectrograms - from the raw wavef
 This defines the ResNet model with a classifier head like softmax  
 
 ### train.py  
-This is the main script which will train the model. This will handle the dataset, the feature extraction. 
+This is the main script which will train the model. This will handle the dataset, the feature extraction. Logs the nummber of epochs run and each epoch's details and statistics. 
 
 ### evaluation.py  
 This will load a trained model checkpoint, and will run evaluation/testing - data accuracy and other stuff.  
