@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Detector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&family=Syne:wght@400..800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-title"><span class="yellow">D</span>eepfake <span class="yellow">A</span>udio <span class="yellow">D</span>etector</div>
+    </nav>
+
+    <div class="container">
+        <div class="left">
+            <h2>Detect Deepfake Audio</h2>
+            <p>
+                Audio Detector is an interactive platform built to identify deepfake audio using state-of-the-art machine learning. 
+            </p>
+
+            <!-- ✅ NEW: Training Metrics Section -->
+            <div class="training-metrics">
+                <h3>🎯 Model Training Status</h3>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Epochs</div>
+                        <div class="metric-value"><%= metrics.cumulative_epochs || 0 %></div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Train Accuracy</div>
+                        <div class="metric-value"><%= metrics.train_accuracy ? metrics.train_accuracy.toFixed(2) + '%' : 'N/A' %></div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Val Accuracy</div>
+                        <div class="metric-value"><%= metrics.val_accuracy ? metrics.val_accuracy.toFixed(2) + '%' : 'N/A' %></div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Train Loss</div>
+                        <div class="metric-value"><%= metrics.train_loss ? metrics.train_loss.toFixed(4) : 'N/A' %></div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Val Loss</div>
+                        <div class="metric-value"><%= metrics.val_loss ? metrics.val_loss.toFixed(4) : 'N/A' %></div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-label">Best Val Loss</div>
+                        <div class="metric-value"><%= metrics.best_val_loss ? metrics.best_val_loss.toFixed(4) : 'N/A' %></div>
+                    </div>
+                </div>
+                <% if (metrics.timestamp) { %>
+                <div class="last-updated">Last updated: <%= metrics.timestamp %></div>
+                <% } %>
+            </div>
+        </div>
+
+        <div class="right">
+            <form id="uploadForm" enctype="multipart/form-data">
+                <label for="audioFile">Select an audio file:</label>
+                <input type="file" id="audioFile" name="audio" accept="audio/*" required hidden>
+                <label for="audioFile" class="upload-btn">
+                    <img src="/audio.svg" alt="Upload Audio" class="mic-icon">
+                    <span id="labelText">Choose File</span>
+                </label>
+                <button type="button" id="recordBtn" class="record-btn">🎙️ Record</button>
+                <button type="button" id="stopBtn" class="stop-btn hidden">⏹️ Stop</button>
+            
+                <button type="submit">Analyze</button>
+            </form>
+            <div class="model-toggle-container">
+                <button type="button" id="toggleModelBtn" class="toggle-model-btn">
+                    <span id="modelName">Model: for_resnet34-1</span>
+                    <span class="toggle-icon"></span>
+                </button>
+            </div>
+
+            <div id="result" class="result hidden">
+                <h3>Result:</h3>
+                <p id="verdict"></p>
+                <p id="probability"></p>
+                <p id="modelUsed" style="font-size: 12px; color: #888; margin-top: 10px; display: none;"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/main.js"></script>
+</body>
+</html>

@@ -56,3 +56,12 @@ api/node_modules/
 #The files in the uploads folder, but I want the uploads folder to remain
 api/uploads/*
 
+deepfake-env/
+
+epoch_counter.json
+api/__pycache__/
+corrupted_files.txt
+api/uploads/.gitkeep
+latest_metrics.json
+log.txt
+comparison_plots/
